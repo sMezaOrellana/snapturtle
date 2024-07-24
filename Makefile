@@ -1,6 +1,6 @@
 CC = clang 
 CFLAGS = -Wno-cpp -Wall
-OBJ_FILES = main.o
+OBJ_FILES = main.o eventdatatypes.o
 DYN_LYB = -lbsm -lEndpointSecurity
 FRAMEWORKS = -framework Foundation -framework Cocoa -framework UniformTypeIdentifiers
 EXE = snapturtle
@@ -11,6 +11,9 @@ snapturtle: $(OBJ_FILES)
 
 main.o: main.m
 	$(CC) $(CFLAGS) -c main.m
+
+eventdatatypes.o: eventdatatypes.m
+	$(CC) $(CFLAGS) -c eventdatatypes.m
 
 codesign:
 	codesign --sign - \

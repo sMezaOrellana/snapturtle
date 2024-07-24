@@ -14,7 +14,7 @@ https://gist.github.com/Omar-Ikram/8e6721d8e83a3da69b31d4c2612a68ba#file-endpoin
 
 ## Status
 
-Currently only 2 events are logged (ES_AUTH_OPEN, ES_AUTH_EXEC). Output is redirected to a `./logs` file. 
+Currently only 2 events are logged (ES_EVENT_TYPE_AUTH_OPEN, ES_EVENT_TYPE_AUTH_EXEC). Output is redirected to the `./logs` file. 
 The SHA1 of the file within the file_path of the es_file_t struct within ES_EVENT_TYPE_AUTH_EXEC, ES_EVENT_TYPE_AUTH_OPEN is calculated when we process the events.
 
 ## Setup
@@ -24,6 +24,6 @@ The SHA1 of the file within the file_path of the es_file_t struct within ES_EVEN
    git clone <repository-url>
    cd <repository-directory>
    make
-   ./snapturtle
+   sudo ./snapturtle
    ```
 
