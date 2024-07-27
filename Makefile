@@ -1,19 +1,21 @@
 CC = clang 
 CFLAGS = -Wno-cpp -Wall
-OBJ_FILES = main.o eventdatatypes.o
-DYN_LYB = -lbsm -lEndpointSecurity
+OBJ_DIR = build
+SRC_FILES = main.m eventdatatypes.m shared.m
+OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(SRC_FILES:.m=.o)))
+DYN_LIB = -lbsm -lEndpointSecurity
 FRAMEWORKS = -framework Foundation -framework Cocoa -framework UniformTypeIdentifiers
 EXE = snapturtle
+
+$(shell mkdir -p $(OBJ_DIR))
+
 all: $(EXE) codesign
 
-snapturtle: $(OBJ_FILES)
-	$(CC) $(CFLAGS) $(OBJ_FILES) -o $(EXE) $(FRAMEWORKS) $(DYN_LYB)
+$(EXE): $(OBJ_FILES)
+	$(CC) $(CFLAGS) $(OBJ_FILES) -o $(EXE) $(DYN_LIB) $(FRAMEWORKS) 
 
-main.o: main.m
-	$(CC) $(CFLAGS) -c main.m
-
-eventdatatypes.o: eventdatatypes.m
-	$(CC) $(CFLAGS) -c eventdatatypes.m
+$(OBJ_DIR)/%.o: %.m
+	$(CC) $(CFLAGS) -c $< -o $@
 
 codesign:
 	codesign --sign - \
@@ -22,4 +24,4 @@ codesign:
     	--force
 
 clean:
-	rm *.o
+	rm -rf $(OBJ_DIR) $(EXE)

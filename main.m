@@ -2,10 +2,11 @@
 #import "shared.h"
 
 #pragma mark Globals
-NSFileHandle *file_handle = nil;
+NSFileHandle *logs_file_handle = nil;
 es_client_t *g_client = nil;
 NSSet *g_blocked_paths = nil;
 
+NSFileHandle *config_file_handle = nil;
 // Endpoint Security event handler selected at startup from the command line
 es_handler_block_t g_handler = nil;
 
@@ -64,7 +65,7 @@ bool log_muted_paths_events(void) {
     }
   }
 
-  es_release_muted_paths(muted_paths);
+  // es_release_muted_paths(muted_paths);
   return true;
 }
 
@@ -134,8 +135,8 @@ void sig_handler(int sig) {
   }
 
   [g_blocked_paths release];
-  [file_handle closeFile];
-  [file_handle release];
+  [logs_file_handle closeFile];
+  [logs_file_handle release];
   LOG_IMPORTANT_INFO("Exiting");
   exit(EXIT_SUCCESS);
 }
@@ -169,7 +170,6 @@ es_auth_result_t auth_event_handler(const es_message_t *msg) {
     if (![g_blocked_paths containsObject:path]) {
       return ES_AUTH_RESULT_ALLOW;
     }
-
     LOG_IMPORTANT_INFO("BLOCKING EXEC: %@", path);
     return ES_AUTH_RESULT_DENY;
   }
@@ -210,62 +210,49 @@ void respond_to_auth_event(es_client_t *clt, const es_message_t *msg,
 // from Endpoint Security
 es_handler_block_t message_handler = ^(es_client_t *clt,
                                        const es_message_t *msg) {
-  // Endpoint Security, by default, calls a event message handler serially
-  // for each message. We copy/retain the message so that we can process and
-  // respond to auth events asynchronously.
-
-  // NOTE: It is important to process events in a timely manner.
-  // The kernel will start to drop events for the client if they are not
-  // responded to in time.
   detect_and_log_dropped_events(msg);
 
-  // Copy/Retain the event message so that we process the event
-  // asynchronously
   es_message_t *copied_msg = copy_message(msg);
-
   if (!copied_msg) {
     LOG_ERROR("Failed to copy message");
     return;
   }
 
-  dispatch_async(
-      dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0),
-      ^(void) {
-        es_auth_result_t result = auth_event_handler(copied_msg);
+  dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^(
+                     void) {
+    es_auth_result_t result = auth_event_handler(copied_msg);
 
-        if (ES_ACTION_TYPE_AUTH == copied_msg->action_type) {
-          respond_to_auth_event(clt, copied_msg, result);
-        }
-        dispatch_async(
-            dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0), ^{
-              NSDictionary *event_dict = event_message_to_dict(copied_msg);
-              if ([NSJSONSerialization isValidJSONObject:event_dict]) {
-                NSError *error;
-                NSData *jsonData = [NSJSONSerialization
-                    dataWithJSONObject:event_dict
-                               options:NSJSONWritingPrettyPrinted
-                                 error:&error];
+    if (ES_ACTION_TYPE_AUTH == copied_msg->action_type) {
+      respond_to_auth_event(clt, copied_msg, result);
+    }
 
-                if (!jsonData) {
-                  NSLog(@"Got an error: %@", error);
-                } else {
-                  NSString *jsonString =
-                      [[NSString alloc] initWithData:jsonData
-                                            encoding:NSUTF8StringEncoding];
+    dispatch_async(
+        dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_HIGH, 0), ^{
+          NSDictionary *event_dict = event_message_to_dict(copied_msg);
+          if ([NSJSONSerialization isValidJSONObject:event_dict]) {
+            NSError *error;
+            NSData *jsonData = [NSJSONSerialization
+                dataWithJSONObject:event_dict
+                           options:NSJSONWritingPrettyPrinted
+                             error:&error];
 
-                  NSString *jsonLine =
-                      [jsonString stringByAppendingString:@"\n"];
+            if (!jsonData) {
+              NSLog(@"Got an error: %@", error);
+            } else {
+              NSString *jsonString =
+                  [[NSString alloc] initWithData:jsonData
+                                        encoding:NSUTF8StringEncoding];
 
-                  [file_handle
-                      writeData:[jsonLine
-                                    dataUsingEncoding:NSUTF8StringEncoding]];
-                }
-              }
-              free_message(copied_msg);
-            });
-      });
+              NSString *jsonLine = [jsonString stringByAppendingString:@"\n"];
+
+              [logs_file_handle
+                  writeData:[jsonLine dataUsingEncoding:NSUTF8StringEncoding]];
+            }
+          }
+          free_message(copied_msg);
+        });
+  });
 };
-
 // On macOS Monterey 12, Apple have deprecated es_mute_path_literal in favour of
 // es_mute_path
 bool mute_path(const char *path) {
@@ -328,8 +315,6 @@ bool setup_endpoint_security(void) {
 
   // Subscribe to the events we're interested in
   es_event_type_t events[] = {ES_EVENT_TYPE_AUTH_OPEN, ES_EVENT_TYPE_AUTH_EXEC};
-  //, ES_EVENT_TYPE_AUTH_OPEN,
-  // ES_EVENT_TYPE_NOTIFY_FORK};
 
   es_return_t subscribed =
       es_subscribe(g_client, events, sizeof events / sizeof *events);
@@ -351,20 +336,57 @@ int main(int argc, const char *argv[]) {
   logs_file_path = [logs_file_path stringByAppendingPathComponent:@"logs"];
 
   // Open the file for appending
-  file_handle = [NSFileHandle fileHandleForWritingAtPath:logs_file_path];
-  if (!file_handle) {
+  logs_file_handle = [NSFileHandle fileHandleForWritingAtPath:logs_file_path];
+  if (!logs_file_handle) {
     [[NSFileManager defaultManager] createFileAtPath:logs_file_path
                                             contents:nil
                                           attributes:nil];
-    file_handle = [NSFileHandle fileHandleForWritingAtPath:logs_file_path];
+    logs_file_handle = [NSFileHandle fileHandleForWritingAtPath:logs_file_path];
   }
 
-  if (!file_handle) {
+  if (!logs_file_handle) {
     NSLog(@"Error opening (%@)", logs_file_path);
   }
 
-  [file_handle retain];
+  [logs_file_handle retain];
 
+  NSString *config_file_path =
+      [[NSFileManager defaultManager] currentDirectoryPath];
+  config_file_path =
+      [config_file_path stringByAppendingPathComponent:@"config.json"];
+
+  NSError *error = nil;
+
+  // Read the content of the file into a string
+  NSString *config_file_content =
+      [NSString stringWithContentsOfFile:config_file_path
+                                encoding:NSUTF8StringEncoding
+                                   error:&error];
+
+  if (error) {
+    NSLog(@"Error reading file: %@", [error localizedDescription]);
+  } else {
+    // Successfully read the file content
+    NSLog(@"File Content:\n%@", config_file_content);
+  }
+
+  NSData *config_data =
+      [config_file_content dataUsingEncoding:NSUTF8StringEncoding];
+
+  NSLog(@"%@", config_data);
+
+  id jsonObject =
+      [NSJSONSerialization JSONObjectWithData:config_data
+                                      options:NSJSONReadingMutableContainers
+                                        error:&error];
+  if (error) {
+    NSLog(@"Error parsing JSON: %@", error);
+  }
+
+  NSDictionary *config_dict = (NSDictionary *)jsonObject;
+  NSLog(@"%@", jsonObject);
+
+  return -1;
   @autoreleasepool {
     // Init global vars
     g_handler = message_handler;

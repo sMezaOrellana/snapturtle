@@ -1,13 +1,6 @@
 #include "eventdatatypes.h"
-
+#include "shared.h"
 NSString *formatted_date_str(__darwin_time_t secs_since_1970);
-uint64_t MachTimeToNanoseconds(uint64_t machTime);
-NSString *SHA1ForFileAtPath(NSString *filePath);
-NSString *codesigning_flags_str(const uint32_t codesigning_flags);
-const NSString *event_type_str(const es_event_type_t event_type);
-NSString *esstring_to_nsstring(const es_string_token_t es_string_token);
-
-#define BOOL_VALUE(x) x ? "Yes" : "No"
 
 NSDictionary *audit_token_to_dict(const audit_token_t *audit_token) {
   return @{
@@ -41,14 +34,13 @@ NSDictionary *stat_to_dictionary(const struct stat *stat) {
 
 NSDictionary *es_file_t_to_dict(const es_file_t *file) {
   NSString *file_path = esstring_to_nsstring(file->path);
-  NSString *process_sha1;
+  NSString *process_sha1 = @"";
 
-  if (S_ISREG(file->stat.st_mode) && file->stat.st_size < 40000000) {
-    file_path = esstring_to_nsstring(file->path);
-    process_sha1 = SHA1ForFileAtPath(file_path);
-  } else {
-    process_sha1 = @"";
-  }
+  // if (S_ISREG(file->stat.st_mode) && file->stat.st_size <= 40000000) {
+  //  file_path = esstring_to_nsstring(file->path);
+  //  process_sha1 = SHA1ForFileAtPath(file_path);
+  //}
+
   return @{
     @"path" : esstring_to_nsstring(file->path),
     @"path_truncated" : @(BOOL_VALUE(file->path_truncated)),
@@ -60,7 +52,7 @@ NSDictionary *es_file_t_to_dict(const es_file_t *file) {
 NSDictionary *es_process_t_to_dict(const es_process_t *proc) {
 
   NSString *path = esstring_to_nsstring(proc->executable->path);
-  NSString *process_sha1 = SHA1ForFileAtPath(path);
+  NSString *process_sha1 = @""; // SHA1ForFileAtPath(path);
   return @{
     @"proc" : @{
       @"audit_token" : audit_token_to_dict(&(proc->audit_token)),
@@ -96,6 +88,8 @@ NSDictionary *es_event_exec_to_dict(const es_event_exec_t *exec) {
   return @{
     @"target" : es_process_t_to_dict(exec->target),
     @"command_line_arguments" : exec_command_line_arguments_to_array(exec),
+    @"dyld_exec_path" : esstring_to_nsstring(exec->dyld_exec_path),
+    @"cwd" : es_file_t_to_dict(exec->cwd),
 
   };
 }
