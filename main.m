@@ -349,43 +349,6 @@ int main(int argc, const char *argv[]) {
   }
 
   [logs_file_handle retain];
-
-  NSString *config_file_path =
-      [[NSFileManager defaultManager] currentDirectoryPath];
-  config_file_path =
-      [config_file_path stringByAppendingPathComponent:@"config.json"];
-
-  NSError *error = nil;
-
-  // Read the content of the file into a string
-  NSString *config_file_content =
-      [NSString stringWithContentsOfFile:config_file_path
-                                encoding:NSUTF8StringEncoding
-                                   error:&error];
-
-  if (error) {
-    NSLog(@"Error reading file: %@", [error localizedDescription]);
-  } else {
-    // Successfully read the file content
-    NSLog(@"File Content:\n%@", config_file_content);
-  }
-
-  NSData *config_data =
-      [config_file_content dataUsingEncoding:NSUTF8StringEncoding];
-
-  NSLog(@"%@", config_data);
-
-  id jsonObject =
-      [NSJSONSerialization JSONObjectWithData:config_data
-                                      options:NSJSONReadingMutableContainers
-                                        error:&error];
-  if (error) {
-    NSLog(@"Error parsing JSON: %@", error);
-  }
-
-  NSDictionary *config_dict = (NSDictionary *)jsonObject;
-  NSLog(@"%@", jsonObject);
-
   return -1;
   @autoreleasepool {
     // Init global vars
