@@ -48,7 +48,9 @@
 
   return self;
 }
+
 - (BOOL)validateConfigDictionary:(NSDictionary *)dictionary {
+  // TODO: built de NSMutableSet here
   // Check if the top-level dictionary contains "events" key
   NSArray *events = dictionary[@"events"];
   if (![events isKindOfClass:[NSArray class]]) {

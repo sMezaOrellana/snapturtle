@@ -1,7 +1,7 @@
 CC = clang 
 CFLAGS = -Wno-cpp -Wall
 OBJ_DIR = build
-SRC_FILES = main.m eventdatatypes.m shared.m
+SRC_FILES = main.m eventdatatypes.m shared.m config.m
 OBJ_FILES = $(addprefix $(OBJ_DIR)/, $(notdir $(SRC_FILES:.m=.o)))
 DYN_LIB = -lbsm -lEndpointSecurity
 FRAMEWORKS = -framework Foundation -framework Cocoa -framework UniformTypeIdentifiers

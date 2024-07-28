@@ -1,26 +1,22 @@
+#import "config.h"
 #import "eventdatatypes.h"
 #import "shared.h"
 
-#pragma mark Globals
 NSFileHandle *logs_file_handle = nil;
 es_client_t *g_client = nil;
 NSSet *g_blocked_paths = nil;
 
 NSFileHandle *config_file_handle = nil;
-// Endpoint Security event handler selected at startup from the command line
 es_handler_block_t g_handler = nil;
 
-// Used to detect if any events have been dropped by the kernel
 uint64_t g_global_seq_num = 0;
 NSMutableDictionary *g_seq_nums = nil;
 
-// Set to true if want to cache the results of an auth event response
 bool g_cache_auth_results = false;
 
-// Logs can become quite busy, especially when subscribing to
-// ES_EVENT_TYPE_AUTH_OPEN events. Only log all event messages when the flag is
-// enabled; otherwise only denied Auth event messages will be logged.
 bool g_verbose_logging = false;
+
+Config *config = nil;
 
 int g_log_indent = 0;
 #define LOG_INDENT_INC()                                                       \
@@ -86,13 +82,9 @@ bool log_subscribed_events(void) {
   return true;
 }
 
-// Demonstrates detecting dropped event messages from the kernel, by either
-// using the using the seq_num or global_seq_num fields in an event message
 void detect_and_log_dropped_events(const es_message_t *msg) {
   uint32_t version = msg->version;
 
-  // Note: You can use the seq_num field to detect if the kernel had to
-  // drop any event messages, for an event type, to the client.
   if (version >= 2) {
     uint64_t seq_num = msg->seq_num;
 
@@ -249,6 +241,7 @@ es_handler_block_t message_handler = ^(es_client_t *clt,
                   writeData:[jsonLine dataUsingEncoding:NSUTF8StringEncoding]];
             }
           }
+
           free_message(copied_msg);
         });
   });
@@ -336,6 +329,7 @@ int main(int argc, const char *argv[]) {
   logs_file_path = [logs_file_path stringByAppendingPathComponent:@"logs"];
 
   // Open the file for appending
+  // TODO: check that this does not return any errors
   logs_file_handle = [NSFileHandle fileHandleForWritingAtPath:logs_file_path];
   if (!logs_file_handle) {
     [[NSFileManager defaultManager] createFileAtPath:logs_file_path
@@ -349,7 +343,10 @@ int main(int argc, const char *argv[]) {
   }
 
   [logs_file_handle retain];
-  return -1;
+
+  config = [[Config alloc] initWithConfigPath:@"./config.json"];
+  NSLog(@"%@", config.config);
+
   @autoreleasepool {
     // Init global vars
     g_handler = message_handler;
